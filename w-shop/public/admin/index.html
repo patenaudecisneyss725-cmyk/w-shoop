@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>W的店铺 - 后台管理</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f6fa;
+      padding: 20px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { color: #1a1a2e; margin-bottom: 20px; }
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .tab {
+      padding: 12px 24px;
+      background: white;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    .tab.active { background: #e94560; color: white; }
+    .panel {
+      background: white;
+      border-radius: 15px;
+      padding: 25px;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+      display: none;
+    }
+    .panel.active { display: block; }
+    
+    /* 表单 */
+    .form-row { display: flex; gap: 15px; margin-bottom: 15px; }
+    .form-group { flex: 1; }
+    .form-group label { display: block; margin-bottom: 5px; color: #333; }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .btn-primary { background: #e94560; color: white; }
+    .btn-success { background: #00b894; color: white; }
+    .btn-warning { background: #fdcb6e; color: #333; }
+    .btn-danger { background: #ff7675; color: white; }
+    
+    /* 表格 */
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+    th { background: #f8f9fa; color: #555; }
+    
+    /* 商品卡片 */
+    .products-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+    }
+    .product-card {
+      border: 1px solid #eee;
+      border-radius: 10px;
+      padding: 15px;
+    }
+    .product-card img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 8px;
+    }
+    .product-card h4 { margin: 10px 0 5px; }
+    .product-card .price { color: #e94560; font-weight: bold; }
+    
+    /* 收款码 */
+    .upload-area {
+      border: 3px dashed #ddd;
+      border-radius: 15px;
+      padding: 40px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .upload-area:hover { border-color: #e94560; background: #fff5f5; }
+    
+    /* 状态 */
+    .status {
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .status.pending { background: #ffeaa7; color: #d63031; }
+    .status.paid { background: #74b9ff; color: #0984e3; }
+    .status.shipped { background: #55efc4; color: #00b894; }
+    .status.delivered { background: #a29bfe; color: #6c5ce7; }
+    
+    /* 统计 */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 15px;
+      text-align: center;
+    }
+    .stat-card h3 { font-size: 32px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔥 W的店铺 - 后台管理</h1>
+    
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('orders')">📦 订单管理</button>
+      <button class="tab" onclick="switchTab('products')">🛍️ 商品管理</button>
+      <button class="tab" onclick="switchTab('qrcode')">💰 上传收款码</button>
+    </div>
+    
+    <!-- 订单面板 -->
+    <div class="panel active" id="ordersPanel">
+      <div class="stats" id="stats"></div>
+      <button class="btn btn-primary" onclick="exportOrders()">📥 导出CSV</button>
+      <table>
+        <thead>
+          <tr>
+            <th>订单号</th>
+            <th>商品</th>
+            <th>收货人</th>
+            <th>电话</th>
+            <th>地址</th>
+            <th>金额</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="ordersTable"></tbody>
+      </table>
+    </div>
+    
+    <!-- 商品面板 -->
+    <div class="panel" id="productsPanel">
+      <h3>添加新商品</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>商品名称 *</label>
+          <input type="text" id="productName" placeholder="请输入商品名称">
+        </div>
+        <div class="form-group">
+          <label>价格 *</label>
+          <input type="number" id="productPrice" placeholder="请输入价格" step="0.01">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>描述</label>
+          <input type="text" id="productDesc" placeholder="商品描述">
+        </div>
+        <div class="form-group">
+          <label>库存</label>
+          <input type="number" id="productStock" placeholder="库存数量" value="999">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>商品图片</label>
+        <input type="file" id="productImage" accept="image/*">
+      </div>
+      <button class="btn btn-primary" onclick="addProduct()">➕ 添加商品</button>
+      
+      <h3 style="margin-top: 30px;">商品列表</h3>
+      <div class="products-grid" id="productsList"></div>
+    </div>
+    
+    <!-- 收款码面板 -->
+    <div class="panel" id="qrcodePanel">
+      <div class="upload-area" onclick="document.getElementById('qrcodeFile').click()">
+        <p style="font-size: 18px; color: #666;">📤 点击上传微信收款码</p>
+        <p style="color: #e94560; margin-top: 10px;">⚠️ 收款码有效期仅5分钟！</p>
+        <input type="file" id="qrcodeFile" accept="image/*" style="display: none;">
+      </div>
+      <div id="uploadStatus"></div>
+    </div>
+  </div>
+  
+  <!-- 发货弹窗 -->
+  <div class="panel" id="shipModal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 15px; z-index: 1000; width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+    <h3>🚚 发货</h3>
+    <div class="form-group" style="margin-top: 15px;">
+      <label>快递公司</label>
+      <select id="shippingCompany">
+        <option value="">请选择</option>
+        <option value="顺丰">顺丰</option>
+        <option value="中通">中通</option>
+        <option value="圆通">圆通</option>
+        <option value="申通">申通</option>
+        <option value="韵达">韵达</option>
+        <option value="邮政">邮政</option>
+        <option value="京东">京东</option>
+        <option value="极兔">极兔</option>
+        <option value="其他">其他</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>快递单号</label>
+      <input type="text" id="trackingNumber" placeholder="请输入快递单号">
+    </div>
+    <div style="display: flex; gap: 10px;">
+      <button class="btn btn-success" onclick="confirmShip()">确认发货</button>
+      <button class="btn btn-danger" onclick="closeShipModal()">取消</button>
+    </div>
+  </div>
+
+  <script>
+    let currentOrderId = '';
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById(tab + 'Panel').classList.add('active');
+      
+      if (tab === 'orders') loadOrders();
+      if (tab === 'products') loadProducts();
+    }
+
+    // 订单相关
+    async function loadOrders() {
+      const res = await fetch('/api/admin/orders');
+      const orders = await res.json();
+      
+      // 统计
+      const total = orders.length;
+      const paid = orders.filter(o => o.status === 'paid' || o.status === 'shipped' || o.status === 'delivered').length;
+      const shipped = orders.filter(o => o.status === 'shipped').length;
+      
+      document.getElementById('stats').innerHTML = `
+        <div class="stat-card"><h3>${total}</h3><p>总订单</p></div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);"><h3>${paid}</h3><p>已支付</p></div>
+        <div class="stat-card" style="background: linear-gradient(135deg, #55efc4 0%, #00b894 100%);"><h3>${shipped}</h3><p>已发货</p></div>
+      `;
+      
+      const statusMap = {
+        'pending': '⏳ 待支付',
+        'paid': '✅ 已支付',
+        'shipped': '🚚 已发货',
+        'delivered': '📦 已送达'
+      };
+      
+      document.getElementById('ordersTable').innerHTML = orders.map(o => `
+        <tr>
+          <td>${o.id}</td>
+          <td>${o.products.map(p => `${p.name}x${p.quantity}`).join(', ')}</td>
+          <td>${o.customer_name}</td>
+          <td>${o.customer_phone}</td>
+          <td>${o.customer_address.substring(0, 15)}...</td>
+          <td>¥${o.total_amount}</td>
+          <td><span class="status ${o.status}">${statusMap[o.status]}</span></td>
+          <td>
+            ${o.status === 'paid' ? `<button class="btn btn-success btn-sm" onclick="openShipModal('${o.id}')">🚚 发货</button>` : ''}
+            ${o.status === 'shipped' ? `<button class="btn btn-warning btn-sm" onclick="markDelivered('${o.id}')">📦 送达</button>` : ''}
+            ${o.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="markPaid('${o.id}')">✅ 确认支付</button>` : ''}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function exportOrders() {
+      window.open('/api/admin/orders/export', '_blank');
+    }
+
+    // 商品相关
+    async function loadProducts() {
+      const res = await fetch('/api/products');
+      const products = await res.json();
+      
+      document.getElementById('productsList').innerHTML = products.map(p => `
+        <div class="product-card">
+          <img src="${p.image ? '/uploads/' + p.image : ''}" alt="${p.name}">
+          <h4>${p.name}</h4>
+          <p class="price">¥${p.price}</p>
+          <p style="font-size: 12px; color: #666;">库存: ${p.stock}</p>
+          <button class="btn btn-danger" style="margin-top: 10px; width: 100%;" onclick="deleteProduct('${p.id}')">🗑️ 删除</button>
+        </div>
+      `).join('');
+    }
+
+    async function addProduct() {
+      const name = document.getElementById('productName').value.trim();
+      const price = document.getElementById('productPrice').value;
+      const description = document.getElementById('productDesc').value.trim();
+      const stock = document.getElementById('productStock').value;
+      const imageFile = document.getElementById('productImage').files[0];
+      
+      if (!name || !price) {
+        alert('请填写商品名称和价格');
+        return;
+      }
+      
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('price', price);
+      formData.append('description', description);
+      formData.append('stock', stock);
+      if (imageFile) formData.append('image', imageFile);
+      
+      const res = await fetch('/api/admin/products', {
+        method: 'POST',
+        body: formData
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        alert('商品添加成功！');
+        loadProducts();
+        // 清空表单
+        document.getElementById('productName').value = '';
+        document.getElementById('productPrice').value = '';
+        document.getElementById('productDesc').value = '';
+      } else {
+        alert('添加失败：' + data.error);
+      }
+    }
+
+    async function deleteProduct(id) {
+      if (!confirm('确定删除这个商品？')) return;
+      
+      await fetch(`/api/admin/products/${id}`, { method: 'DELETE' });
+      loadProducts();
+    }
+
+    // 收款码上传
+    document.getElementById('qrcodeFile').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const formData = new FormData();
+      formData.append('qrcode', file);
+      
+      document.getElementById('uploadStatus').innerHTML = '<p>上传中...</p>';
+      
+      const res = await fetch('/api/admin/qrcode', {
+        method: 'POST',
+        body: formData
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('uploadStatus').innerHTML = `
+          <p style="color: #00b894;">✅ 收款码上传成功！</p>
+          <p style="color: #e94560;">⏰ 有效期5分钟，过期后请重新上传</p>
+        `;
+      } else {
+        document.getElementById('uploadStatus').innerHTML = `<p style="color: #e74c3c;">❌ 上传失败：${data.error}</p>`;
+      }
+    });
+
+    // 发货
+    function openShipModal(orderId) {
+      currentOrderId = orderId;
+      document.getElementById('shipModal').style.display = 'block';
+    }
+
+    function closeShipModal() {
+      document.getElementById('shipModal').style.display = 'none';
+      document.getElementById('shippingCompany').value = '';
+      document.getElementById('trackingNumber').value = '';
+    }
+
+    async function confirmShip() {
+      const company = document.getElementById('shippingCompany').value;
+      const number = document.getElementById('trackingNumber').value;
+      
+      if (!company || !number) {
+        alert('请填写快递公司和单号');
+        return;
+      }
+      
+      await fetch(`/api/admin/orders/${currentOrderId}/ship`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shipping_company: company, tracking_number: number })
+      });
+      
+      closeShipModal();
+      loadOrders();
+      alert('发货成功！');
+    }
+
+    async function markDelivered(orderId) {
+      await fetch(`/api/admin/orders/${orderId}/delivered`, { method: 'POST' });
+      loadOrders();
+    }
+
+    async function markPaid(orderId) {
+      await fetch(`/api/admin/orders/${orderId}/paid`, { method: 'POST' });
+      loadOrders();
+    }
+
+    // 初始化
+    loadOrders();
+  </script>
+</body>
+</html>
